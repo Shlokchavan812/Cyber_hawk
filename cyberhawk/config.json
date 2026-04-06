@@ -1,0 +1,156 @@
+{
+  "project": {
+    "name": "Cyber Threat Intelligence System",
+    "version": "1.0.0",
+    "description": "ML-based network threat detection and classification"
+  },
+  
+  "model": {
+    "type": "RandomForestClassifier",
+    "n_estimators": 100,
+    "random_state": 42,
+    "test_size": 0.2,
+    "features": [
+      "packet_count",
+      "byte_count",
+      "duration",
+      "protocol",
+      "flags",
+      "source_port",
+      "dest_port",
+      "packet_rate",
+      "data_rate"
+    ],
+    "num_features": 9,
+    "classes": [
+      "Normal",
+      "DoS",
+      "Brute_Force",
+      "Port_Scan",
+      "Botnet",
+      "Malware"
+    ]
+  },
+  
+  "threats": {
+    "Normal": {
+      "risk_level": "Low",
+      "description": "Normal network traffic",
+      "icon": "🟢",
+      "severity_score": 10
+    },
+    "DoS": {
+      "risk_level": "High",
+      "description": "Denial of Service attack detected",
+      "icon": "🔴",
+      "severity_score": 75
+    },
+    "Brute_Force": {
+      "risk_level": "Medium",
+      "description": "Brute force attack pattern",
+      "icon": "🟡",
+      "severity_score": 50
+    },
+    "Port_Scan": {
+      "risk_level": "Medium",
+      "description": "Network reconnaissance activity",
+      "icon": "🟡",
+      "severity_score": 50
+    },
+    "Botnet": {
+      "risk_level": "High",
+      "description": "Botnet activity detected",
+      "icon": "🔴",
+      "severity_score": 75
+    },
+    "Malware": {
+      "risk_level": "Critical",
+      "description": "Malicious software activity",
+      "icon": "⛔",
+      "severity_score": 100
+    }
+  },
+  
+  "dashboard": {
+    "title": "🛡️ Cyber Threat Intelligence System",
+    "theme": "light",
+    "layout": "wide",
+    "show_code": false,
+    "allow_download": true
+  },
+  
+  "reporting": {
+    "format": "PDF",
+    "include_timestamp": true,
+    "include_features": true,
+    "include_severity": true,
+    "auto_save": false,
+    "output_directory": "./"
+  },
+  
+  "data_paths": {
+    "training_data": "data/dataset.csv",
+    "models_directory": "models/",
+    "model_file": "models/model.pkl",
+    "scaler_file": "models/scaler.pkl",
+    "label_encoder_file": "models/label_encoder.pkl",
+    "analysis_output": "analysis_results/"
+  },
+  
+  "thresholds": {
+    "critical_alert": 100,
+    "high_alert": 75,
+    "medium_alert": 50,
+    "low_alert": 10
+  },
+  
+  "feature_ranges": {
+    "packet_count": {
+      "min": 50,
+      "max": 1000,
+      "normal_range": [80, 150]
+    },
+    "byte_count": {
+      "min": 2500,
+      "max": 50000,
+      "normal_range": [4000, 7500]
+    },
+    "duration": {
+      "min": 1,
+      "max": 30,
+      "normal_range": [8, 15]
+    },
+    "protocol": {
+      "common": [6, 17],
+      "description": "6=TCP, 17=UDP"
+    },
+    "packet_rate": {
+      "min": 5,
+      "max": 500,
+      "normal_range": [8, 20]
+    },
+    "data_rate": {
+      "min": 200,
+      "max": 20000,
+      "normal_range": [400, 1000]
+    }
+  },
+  
+  "advanced": {
+    "batch_processing": true,
+    "parallel_processing": false,
+    "cache_predictions": true,
+    "enable_logging": true,
+    "debug_mode": false,
+    "max_batch_size": 1000
+  },
+  
+  "sample_data": {
+    "normal_traffic": [100, 5000, 10, 6, 0, 1023, 80, 10, 500],
+    "dos_attack": [500, 25000, 2, 6, 0, 1027, 9200, 250, 12500],
+    "brute_force": [300, 15000, 15, 6, 0, 1031, 22, 20, 1000],
+    "port_scan": [200, 10000, 20, 6, 0, 1035, 80, 10, 500],
+    "botnet": [450, 22500, 25, 6, 0, 1039, 80, 18, 900],
+    "malware": [600, 30000, 8, 6, 0, 1043, 80, 75, 3750]
+  }
+}

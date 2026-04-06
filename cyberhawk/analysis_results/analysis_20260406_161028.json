@@ -1,0 +1,261 @@
+{
+  "timestamp": "2026-04-06T16:10:28.389519",
+  "statistics": {
+    "total_flows": 12,
+    "threats_detected": 10,
+    "critical": 2,
+    "high": 4,
+    "medium": 4,
+    "low": 2,
+    "threat_breakdown": {
+      "Normal Traffic": 2,
+      "Denial of Service": 2,
+      "Malware": 2,
+      "Brute Force Attack": 2,
+      "Port Scan": 2,
+      "Botnet": 2
+    }
+  },
+  "results": [
+    {
+      "flow_id": "flow_1",
+      "timestamp": "2026-04-06T16:10:28.320409",
+      "prediction": 4,
+      "threat_type": "Normal Traffic",
+      "risk_level": "Low",
+      "description": "No threats detected",
+      "features": {
+        "packet_count": 100,
+        "byte_count": 5000,
+        "duration": 10,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1023,
+        "dest_port": 80,
+        "packet_rate": 10,
+        "data_rate": 500
+      },
+      "severity_score": 10
+    },
+    {
+      "flow_id": "flow_2",
+      "timestamp": "2026-04-06T16:10:28.327579",
+      "prediction": 4,
+      "threat_type": "Normal Traffic",
+      "risk_level": "Low",
+      "description": "No threats detected",
+      "features": {
+        "packet_count": 105,
+        "byte_count": 5250,
+        "duration": 11,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1047,
+        "dest_port": 80,
+        "packet_rate": 9.5,
+        "data_rate": 477
+      },
+      "severity_score": 10
+    },
+    {
+      "flow_id": "flow_3",
+      "timestamp": "2026-04-06T16:10:28.334254",
+      "prediction": 2,
+      "threat_type": "Denial of Service",
+      "risk_level": "High",
+      "description": "DoS/DDoS attack detected",
+      "features": {
+        "packet_count": 500,
+        "byte_count": 25000,
+        "duration": 2,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1027,
+        "dest_port": 9200,
+        "packet_rate": 250,
+        "data_rate": 12500
+      },
+      "severity_score": 75
+    },
+    {
+      "flow_id": "flow_4",
+      "timestamp": "2026-04-06T16:10:28.340475",
+      "prediction": 2,
+      "threat_type": "Denial of Service",
+      "risk_level": "High",
+      "description": "DoS/DDoS attack detected",
+      "features": {
+        "packet_count": 510,
+        "byte_count": 25500,
+        "duration": 2.5,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1051,
+        "dest_port": 9200,
+        "packet_rate": 204,
+        "data_rate": 10200
+      },
+      "severity_score": 75
+    },
+    {
+      "flow_id": "flow_5",
+      "timestamp": "2026-04-06T16:10:28.346456",
+      "prediction": 3,
+      "threat_type": "Malware",
+      "risk_level": "Critical",
+      "description": "Malicious software activity",
+      "features": {
+        "packet_count": 600,
+        "byte_count": 30000,
+        "duration": 8,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1043,
+        "dest_port": 80,
+        "packet_rate": 75,
+        "data_rate": 3750
+      },
+      "severity_score": 100
+    },
+    {
+      "flow_id": "flow_6",
+      "timestamp": "2026-04-06T16:10:28.351867",
+      "prediction": 3,
+      "threat_type": "Malware",
+      "risk_level": "Critical",
+      "description": "Malicious software activity",
+      "features": {
+        "packet_count": 610,
+        "byte_count": 30500,
+        "duration": 7.5,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1067,
+        "dest_port": 80,
+        "packet_rate": 81.3,
+        "data_rate": 4066
+      },
+      "severity_score": 100
+    },
+    {
+      "flow_id": "flow_7",
+      "timestamp": "2026-04-06T16:10:28.357609",
+      "prediction": 1,
+      "threat_type": "Brute Force Attack",
+      "risk_level": "Medium",
+      "description": "Brute force attack pattern",
+      "features": {
+        "packet_count": 300,
+        "byte_count": 15000,
+        "duration": 15,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1031,
+        "dest_port": 22,
+        "packet_rate": 20,
+        "data_rate": 1000
+      },
+      "severity_score": 50
+    },
+    {
+      "flow_id": "flow_8",
+      "timestamp": "2026-04-06T16:10:28.363374",
+      "prediction": 1,
+      "threat_type": "Brute Force Attack",
+      "risk_level": "Medium",
+      "description": "Brute force attack pattern",
+      "features": {
+        "packet_count": 305,
+        "byte_count": 15250,
+        "duration": 14.5,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1055,
+        "dest_port": 22,
+        "packet_rate": 21,
+        "data_rate": 1051
+      },
+      "severity_score": 50
+    },
+    {
+      "flow_id": "flow_9",
+      "timestamp": "2026-04-06T16:10:28.368884",
+      "prediction": 5,
+      "threat_type": "Port Scan",
+      "risk_level": "Medium",
+      "description": "Network reconnaissance activity",
+      "features": {
+        "packet_count": 200,
+        "byte_count": 10000,
+        "duration": 20,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1035,
+        "dest_port": 80,
+        "packet_rate": 10,
+        "data_rate": 500
+      },
+      "severity_score": 50
+    },
+    {
+      "flow_id": "flow_10",
+      "timestamp": "2026-04-06T16:10:28.374543",
+      "prediction": 5,
+      "threat_type": "Port Scan",
+      "risk_level": "Medium",
+      "description": "Network reconnaissance activity",
+      "features": {
+        "packet_count": 195,
+        "byte_count": 9750,
+        "duration": 19,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1059,
+        "dest_port": 80,
+        "packet_rate": 10.2,
+        "data_rate": 512
+      },
+      "severity_score": 50
+    },
+    {
+      "flow_id": "flow_11",
+      "timestamp": "2026-04-06T16:10:28.380159",
+      "prediction": 0,
+      "threat_type": "Botnet",
+      "risk_level": "High",
+      "description": "Botnet activity detected",
+      "features": {
+        "packet_count": 450,
+        "byte_count": 22500,
+        "duration": 25,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1039,
+        "dest_port": 80,
+        "packet_rate": 18,
+        "data_rate": 900
+      },
+      "severity_score": 75
+    },
+    {
+      "flow_id": "flow_12",
+      "timestamp": "2026-04-06T16:10:28.385623",
+      "prediction": 0,
+      "threat_type": "Botnet",
+      "risk_level": "High",
+      "description": "Botnet activity detected",
+      "features": {
+        "packet_count": 460,
+        "byte_count": 23000,
+        "duration": 24.5,
+        "protocol": 6,
+        "flags": 0,
+        "source_port": 1063,
+        "dest_port": 80,
+        "packet_rate": 18.7,
+        "data_rate": 938
+      },
+      "severity_score": 75
+    }
+  ]
+}

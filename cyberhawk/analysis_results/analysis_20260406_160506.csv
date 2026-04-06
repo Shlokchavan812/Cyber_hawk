@@ -1,0 +1,13 @@
+flow_id,timestamp,prediction,threat_type,risk_level,severity_score,packet_count,byte_count,duration,protocol,source_port,dest_port
+flow_1,2026-04-06T16:05:06.674290,4,Normal Traffic,Low,10,100,5000,10,6,1023,80
+flow_2,2026-04-06T16:05:06.679630,4,Normal Traffic,Low,10,105,5250,11,6,1047,80
+flow_3,2026-04-06T16:05:06.685403,2,Denial of Service,High,75,500,25000,2,6,1027,9200
+flow_4,2026-04-06T16:05:06.691679,2,Denial of Service,High,75,510,25500,2.5,6,1051,9200
+flow_5,2026-04-06T16:05:06.697428,3,Malware,Critical,100,600,30000,8,6,1043,80
+flow_6,2026-04-06T16:05:06.703527,3,Malware,Critical,100,610,30500,7.5,6,1067,80
+flow_7,2026-04-06T16:05:06.710059,1,Brute Force Attack,Medium,50,300,15000,15,6,1031,22
+flow_8,2026-04-06T16:05:06.715959,1,Brute Force Attack,Medium,50,305,15250,14.5,6,1055,22
+flow_9,2026-04-06T16:05:06.721988,5,Port Scan,Medium,50,200,10000,20,6,1035,80
+flow_10,2026-04-06T16:05:06.728060,5,Port Scan,Medium,50,195,9750,19,6,1059,80
+flow_11,2026-04-06T16:05:06.733703,0,Botnet,High,75,450,22500,25,6,1039,80
+flow_12,2026-04-06T16:05:06.739436,0,Botnet,High,75,460,23000,24.5,6,1063,80
