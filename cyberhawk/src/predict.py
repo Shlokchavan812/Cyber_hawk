@@ -13,4 +13,6 @@ scaler = joblib.load(os.path.join(models_dir, "scaler.pkl"))
 def predict(input_data):
     data = np.array(input_data).reshape(1, -1)
     data = scaler.transform(data)
-    return model.predict(data)[0]
+    pred = model.predict(data)[0]
+    prob = model.predict_proba(data).max()
+    return pred, prob

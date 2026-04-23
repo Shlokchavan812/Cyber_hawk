@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import sys
 from pathlib import Path
+import json
+from datetime import datetime
 
 # Add the parent directory to the path to import src modules
 project_root = Path(__file__).parent.parent
@@ -285,7 +287,11 @@ with col2:
             pass
 
 # Create tabs
-tab1, tab2 = st.tabs(["🔗 Network Threat Analysis", "🌐 Website Threat Analysis"])
+tab1, tab2, tab3 = st.tabs([
+    "🔗 Network Threat Analysis",
+    "🌐 Website Threat Analysis",
+    "📜 Logs"
+])
 
 # ==================== TAB 1: NETWORK ANALYSIS ====================
 with tab1:
@@ -312,6 +318,7 @@ with tab1:
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
         analyze_btn = st.button("🔍 Detect Threat", use_container_width=True, type="primary", key="network_analyze")
     
+    
     # Display sample values
     with st.expander("📋 Sample Network Features"):
         col1, col2, col3 = st.columns(3)
@@ -335,7 +342,7 @@ with tab1:
                     st.error(f"❌ Error: Expected 9 features, got {len(values)}")
                 else:
                     with st.spinner("🔍 Analyzing network traffic..."):
-                        pred = predict(values)
+                        pred, confidence = predict(values)
                         threat = get_threat(pred)
                     
                     # Display Metrics
@@ -372,12 +379,23 @@ with tab1:
                         """, unsafe_allow_html=True)
                     
                     with metric_col4:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Prediction ID</div>
-                            <div class="metric-value">{int(pred)}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                            st.markdown(f"""
+                            <div class="metric-card">
+                                <div class="metric-label">Confidence</div>
+                                <div class="metric-value">{round(confidence*100, 2)}%</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            # Save logs
+                            log_data = {
+                                "timestamp": str(datetime.now()),
+                                "input": values,
+                                "prediction": threat["type"],
+                                "risk": threat["risk"]
+                            }
+
+                            os.makedirs("logs", exist_ok=True)
+                            with open("logs/threat_logs.json", "a") as f:
+                                f.write(json.dumps(log_data) + "\n")
                     
                     # Display Threat Details
                     st.markdown("<div class='section-title' style='margin-top: 25px;'>📋 Threat Details</div>", unsafe_allow_html=True)
@@ -394,6 +412,11 @@ with tab1:
                     
                     # Generate Report
                     st.markdown("<div class='section-title' style='margin-top: 25px;'>📄 Generate Report</div>", unsafe_allow_html=True)
+                    risk_map = {"Low": 25, "Medium": 50, "High": 75, "Critical": 100}
+                    score = risk_map.get(threat["risk"], 0)
+
+                    st.progress(score / 100)
+                    st.caption(f"Risk Score: {score}/100")
                     
                     col1, col2 = st.columns(2)
                     
@@ -430,7 +453,9 @@ with tab1:
                     
                     with col2:
                         if st.button("📋 View Report Data (JSON)", use_container_width=True):
-                            st.json(report_data)
+                                st.json(report_data)
+                                pass 
+                        
             
             except ValueError:
                 st.error("❌ Error: Please enter valid numbers separated by commas")
@@ -527,7 +552,27 @@ with tab2:
                         <div class="metric-value">{website_analysis['low_count']}</div>
                     </div>
                     """, unsafe_allow_html=True)
-                
+                    
+                # ==================== TAB 3: LOGS ====================
+                with tab3:
+                    st.markdown("<div class='section-title'>📜 Threat Logs</div>", unsafe_allow_html=True)
+                    
+                    try:
+                        with open("logs/threat_logs.json", "r") as f:
+                            logs = f.readlines()
+                        
+                        for log in reversed(logs[-10:]):  # last 10 logs
+                            data = json.loads(log)
+                            st.markdown(f"""
+                            <div class="threat-item">
+                                <div class="threat-title">{data['prediction']}</div>
+                                <div class="threat-detail">Risk: {data['risk']}</div>
+                                <div class="threat-detail">Time: {data['timestamp']}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    except:
+                        st.info("No logs available yet.")
                 # Overall Summary
                 summary_msg = website_analysis.get("summary", "")
                 if "No threats" in summary_msg:
