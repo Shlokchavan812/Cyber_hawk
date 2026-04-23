@@ -14,6 +14,8 @@ from sklearn.metrics import classification_report, accuracy_score
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
+from sklearn.model_selection import cross_val_score
+
 def load_and_preprocess(path):
     df = pd.read_csv(path)
     df = df.dropna()
@@ -58,6 +60,8 @@ def main():
     print(f"\nAccuracy: {accuracy:.4f}")
     print("\nClassification Report:")
     print(classification_report(y_test, preds, target_names=le.classes_))
+    scores = cross_val_score(model, X, y, cv=5)
+    print("Cross-validation accuracy:", scores.mean())
     
     # Save models
     model_path = os.path.join(models_dir, "model.pkl")
@@ -75,3 +79,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

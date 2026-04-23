@@ -13,13 +13,20 @@ st.markdown("""
         background-color: #0e1117;
         color: #ffffff;
     }
-    .stButton>button {
+    .stButton>button, .stDownloadButton>button {
         width: 100%;
         border-radius: 5px;
         height: 3em;
         background-color: #ff4b4b;
         color: white;
         font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover, .stDownloadButton>button:hover {
+        background-color: #ff2b2b;
+        border-color: #ff2b2b;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(255, 75, 75, 0.4);
     }
     .stTextInput>div>div>input {
         background-color: #262730;
@@ -41,6 +48,27 @@ st.markdown("""
 def main():
     st.title("🦅 Cyber Hawk")
     st.subheader("MVP Web Vulnerability Scanner")
+    
+    # Top-level PDF Report Download
+    if 'results' in st.session_state and st.session_state['results']:
+        st.markdown("### 📊 Scan Report Available")
+        try:
+            pdf_data = Reporter.to_pdf(st.session_state['results'], st.session_state['target_url'])
+            
+            # Make it clear, reactive, and responsive
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                st.download_button(
+                    label="📄 Download PDF Report",
+                    data=pdf_data,
+                    file_name="cyberhawk_report.pdf",
+                    mime="application/pdf",
+                    type="primary",
+                    use_container_width=True
+                )
+        except Exception as e:
+            st.error(f"Error generating PDF: {e}")
+        st.write("---")
     
     st.sidebar.header("Scan Settings")
     url = st.sidebar.text_input("Target URL", placeholder="https://example.com")
@@ -92,33 +120,7 @@ def main():
                 except Exception as e:
                     st.error(f"An error occurred during scan: {e}")
 
-    # Export section
-    if 'results' in st.session_state and st.session_state['results']:
-        st.write("---")
-        st.subheader("Export Results")
-        
-        col_json, col_pdf = st.columns(2)
-        
-        # JSON Download
-        json_data = Reporter.to_json(st.session_state['results'])
-        col_json.download_button(
-            label="Download JSON Report",
-            data=json_data,
-            file_name="cyberhawk_report.json",
-            mime="application/json"
-        )
-        
-        # PDF Download (using a simple placeholder or actual generator)
-        try:
-            pdf_data = Reporter.to_pdf(st.session_state['results'], st.session_state['target_url'])
-            col_pdf.download_button(
-                label="Download PDF Report",
-                data=pdf_data,
-                file_name="cyberhawk_report.pdf",
-                mime="application/pdf"
-            )
-        except Exception as e:
-            col_pdf.error(f"Error generating PDF: {e}")
+
 
 if __name__ == "__main__":
     main()
