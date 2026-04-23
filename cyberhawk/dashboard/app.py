@@ -1,671 +1,512 @@
-import streamlit as st
+from __future__ import annotations
+
+import json
 import os
 import sys
-from pathlib import Path
-import json
 from datetime import datetime
+from pathlib import Path
 
-# Add the parent directory to the path to import src modules
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+import pandas as pd
+import streamlit as st
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_FILE = LOG_DIR / "threat_logs.jsonl"
 
 from src.predict import predict
-from src.threat_intel import get_threat
 from src.report_generator import generate_report, generate_website_report
-from src.website_threat_analyzer import analyze_website, analyze_multiple_urls
+from src.threat_intel import get_threat
+from src.website_threat_analyzer import analyze_multiple_urls
 
-st.set_page_config(page_title="CyberHawk - Cyber Threat Intelligence System", layout="wide")
 
-# Initialize session state
-if "last_report_path" not in st.session_state:
-    st.session_state.last_report_path = None
-if "last_report_data" not in st.session_state:
-    st.session_state.last_report_data = None
-if "report_generated" not in st.session_state:
-    st.session_state.report_generated = False
-if "website_report_path" not in st.session_state:
-    st.session_state.website_report_path = None
-if "website_analysis_result" not in st.session_state:
-    st.session_state.website_analysis_result = None
+st.set_page_config(
+    page_title="CyberHawk - AI Cybersecurity Threat Intelligence",
+    page_icon="CH",
+    layout="wide",
+)
 
-# Professional CSS for the entire app
-st.markdown("""
-<style>
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-    }
-    
-    .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 25px;
-        border-radius: 12px;
-        margin-bottom: 25px;
-        box-shadow: 0 6px 15px rgba(0,0,0,0.1);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .header-left {
-        flex: 1;
-    }
-    
-    .header-title {
-        color: white;
-        font-size: 36px;
-        font-weight: 900;
-        margin: 0;
-        letter-spacing: 1px;
-    }
-    
-    .header-subtitle {
-        color: rgba(255,255,255,0.9);
-        font-size: 13px;
-        margin-top: 8px;
-        font-weight: 500;
-    }
-    
-    .header-right {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-    }
-    
-    .input-section {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-    
-    .section-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: #333;
-        margin-bottom: 15px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
-    .metric-card {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    }
-    
-    .metric-label {
-        font-size: 12px;
-        color: #666;
-        font-weight: 600;
-        text-transform: uppercase;
-        margin-bottom: 8px;
-    }
-    
-    .metric-value {
-        font-size: 24px;
-        color: #333;
-        font-weight: bold;
-    }
-    
-    .threat-item {
-        background: #f8f9fa;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 4px solid #dc3545;
-        margin: 10px 0;
-    }
-    
-    .threat-item.safe {
-        border-left-color: #28a745;
-        background: #f0f8f5;
-    }
-    
-    .threat-item.warning {
-        border-left-color: #ffc107;
-        background: #fffbf0;
-    }
-    
-    .threat-item.danger {
-        border-left-color: #dc3545;
-        background: #ffe5e5;
-    }
-    
-    .threat-title {
-        font-weight: 700;
-        font-size: 14px;
-        margin-bottom: 8px;
-    }
-    
-    .threat-detail {
-        font-size: 13px;
-        color: #555;
-        margin: 4px 0;
-    }
-    
-    .url-result-card {
-        background: white;
-        border: 2px solid #e0e0e0;
-        padding: 18px;
-        border-radius: 10px;
-        margin: 15px 0;
-    }
-    
-    .url-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: start;
-        margin-bottom: 12px;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-    
-    .url-name {
-        font-weight: 700;
-        color: #333;
-        word-break: break-all;
-        flex: 1;
-        min-width: 200px;
-    }
-    
-    .risk-badge {
-        display: inline-block;
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 700;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-    
-    .risk-badge.critical {
-        background: #dc3545;
-        color: white;
-    }
-    
-    .risk-badge.high {
-        background: #fd7e14;
-        color: white;
-    }
-    
-    .risk-badge.medium {
-        background: #ffc107;
-        color: black;
-    }
-    
-    .risk-badge.low {
-        background: #28a745;
-        color: white;
-    }
-    
-    .threat-score-bar {
-        width: 100%;
-        height: 8px;
-        background: #e0e0e0;
-        border-radius: 4px;
-        margin: 12px 0;
-        overflow: hidden;
-    }
-    
-    .threat-score-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #28a745 0%, #ffc107 50%, #dc3545 100%);
-        transition: width 0.3s ease;
-    }
-    
-    .footer {
-        text-align: center;
-        color: #888;
-        font-size: 12px;
-        margin-top: 50px;
-        padding-top: 20px;
-        border-top: 1px solid #e0e0e0;
-    }
-    
-    @media (max-width: 768px) {
-        .main-header {
-            flex-direction: column;
-            gap: 15px;
-        }
-        
-        .header-title {
-            font-size: 28px;
-        }
-        
-        .metric-card {
-            min-width: 140px;
-        }
-    }
-</style>
-""", unsafe_allow_html=True)
 
-# Main Header
-col1, col2 = st.columns([4, 1])
+def init_state():
+    defaults = {
+        "network_report_path": None,
+        "network_result": None,
+        "website_report_path": None,
+        "website_analysis": None,
+        "urls_text": "https://example.com\nhttp://192.168.1.1\nhttps://login-secure-paypal.fake.xyz",
+    }
+    for key, value in defaults.items():
+        st.session_state.setdefault(key, value)
 
-with col1:
-    st.markdown("""
-    <div class="main-header">
-        <div class="header-left">
-            <div class="header-title">🛡️ CyberHawk</div>
-            <div class="header-subtitle">Advanced Cyber Threat Intelligence System</div>
+
+def write_log(event_type: str, payload: dict):
+    LOG_DIR.mkdir(exist_ok=True)
+    record = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "event_type": event_type,
+        **payload,
+    }
+    with LOG_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, default=str) + "\n")
+
+
+def read_logs(limit: int = 100):
+    if not LOG_FILE.exists():
+        return []
+    with LOG_FILE.open("r", encoding="utf-8") as handle:
+        rows = [json.loads(line) for line in handle if line.strip()]
+    return list(reversed(rows[-limit:]))
+
+
+def download_pdf(path: str | None, label: str, key: str):
+    if path and os.path.exists(path):
+        with open(path, "rb") as pdf_file:
+            st.download_button(
+                label=label,
+                data=pdf_file.read(),
+                file_name=os.path.basename(path),
+                mime="application/pdf",
+                use_container_width=True,
+                key=key,
+            )
+
+
+def risk_color(risk: str) -> str:
+    return {
+        "Critical": "#c4314b",
+        "High": "#e27d2f",
+        "Medium": "#d6a21f",
+        "Low": "#388e3c",
+        "Unknown": "#68707d",
+    }.get(risk, "#68707d")
+
+
+def metric_card(label: str, value, color: str = "#ffffff"):
+    st.markdown(
+        f"""
+        <div class="metric-card" style="border-top-color:{color};">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-    if st.session_state.report_generated and st.session_state.last_report_path:
-        try:
-            with open(st.session_state.last_report_path, "rb") as pdf_file:
-                st.download_button(
-                    label="📥 Network Report",
-                    data=pdf_file.read(),
-                    file_name=os.path.basename(st.session_state.last_report_path),
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="header_download_network"
-                )
-        except:
-            pass
-    
-    if st.session_state.website_report_path:
-        try:
-            with open(st.session_state.website_report_path, "rb") as pdf_file:
-                st.download_button(
-                    label="📥 Website Report",
-                    data=pdf_file.read(),
-                    file_name=os.path.basename(st.session_state.website_report_path),
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key="header_download_website"
-                )
-        except:
-            pass
-
-# Create tabs
-tab1, tab2, tab3 = st.tabs([
-    "🔗 Network Threat Analysis",
-    "🌐 Website Threat Analysis",
-    "📜 Logs"
-])
-
-# ==================== TAB 1: NETWORK ANALYSIS ====================
-with tab1:
-    st.markdown("""
-    <div class="input-section">
-        <div class="section-title">📊 Enter Network Features</div>
-        <p style="color: #666; font-size: 13px; margin: 0;">
-        Analyze network traffic by entering 9 comma-separated feature values.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        input_data = st.text_input(
-            "Network feature values:",
-            placeholder="100, 5000, 10, 6, 0, 1023, 80, 10, 500",
-            help="Features: packet_count, byte_count, duration, protocol, flags, source_port, dest_port, packet_rate, data_rate",
-            label_visibility="collapsed"
-        )
-    
-    with col2:
-        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-        analyze_btn = st.button("🔍 Detect Threat", use_container_width=True, type="primary", key="network_analyze")
-    
-    
-    # Display sample values
-    with st.expander("📋 Sample Network Features"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.info("""**Normal Traffic**
-            100, 5000, 10, 6, 0, 1023, 80, 10, 500""")
-        with col2:
-            st.warning("""**DoS Attack**
-            500, 25000, 2, 6, 0, 1027, 9200, 250, 12500""")
-        with col3:
-            st.error("""**Malware**
-            600, 30000, 8, 6, 0, 1043, 80, 75, 3750""")
-    
-    # Analyze Network Threats
-    if analyze_btn:
-        if input_data.strip():
-            try:
-                values = [float(x.strip()) for x in input_data.split(",")]
-                
-                if len(values) != 9:
-                    st.error(f"❌ Error: Expected 9 features, got {len(values)}")
-                else:
-                    with st.spinner("🔍 Analyzing network traffic..."):
-                        pred, confidence = predict(values)
-                        threat = get_threat(pred)
-                    
-                    # Display Metrics
-                    st.markdown("<div class='section-title'>📊 Analysis Results</div>", unsafe_allow_html=True)
-                    
-                    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-                    
-                    with metric_col1:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Threat Type</div>
-                            <div class="metric-value">{threat["type"]}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with metric_col2:
-                        risk_color = {"Low": "#28a745", "Medium": "#ffc107", "High": "#fd7e14", "Critical": "#dc3545"}
-                        risk_icon = {"Low": "🟢", "Medium": "🟡", "High": "🔴", "Critical": "🔴🔴"}
-                        risk_emoji = risk_icon.get(threat["risk"], "❓")
-                        st.markdown(f"""
-                        <div class="metric-card" style="background: {risk_color.get(threat['risk'], '#6c757d')}40;">
-                            <div class="metric-label">Risk Level</div>
-                            <div class="metric-value">{risk_emoji} {threat['risk']}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with metric_col3:
-                        status = "✅ Safe" if threat["risk"] == "Low" else "🚨 Detected"
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Status</div>
-                            <div class="metric-value">{status}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with metric_col4:
-                            st.markdown(f"""
-                            <div class="metric-card">
-                                <div class="metric-label">Confidence</div>
-                                <div class="metric-value">{round(confidence*100, 2)}%</div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            # Save logs
-                            log_data = {
-                                "timestamp": str(datetime.now()),
-                                "input": values,
-                                "prediction": threat["type"],
-                                "risk": threat["risk"]
-                            }
-
-                            os.makedirs("logs", exist_ok=True)
-                            with open("logs/threat_logs.json", "a") as f:
-                                f.write(json.dumps(log_data) + "\n")
-                    
-                    # Display Threat Details
-                    st.markdown("<div class='section-title' style='margin-top: 25px;'>📋 Threat Details</div>", unsafe_allow_html=True)
-                    
-                    threat_class = "safe" if threat["risk"] == "Low" else "warning" if threat["risk"] == "Medium" else "danger"
-                    st.markdown(f"""
-                    <div class="threat-item {threat_class}">
-                        <div class="threat-title">{threat['type']}</div>
-                        <div class="threat-detail"><strong>Risk Level:</strong> {threat['risk']}</div>
-                        <div class="threat-detail"><strong>Description:</strong> {threat.get('description', 'N/A')}</div>
-                        <div class="threat-detail"><strong>Input Features:</strong> {', '.join(str(v) for v in values)}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Generate Report
-                    st.markdown("<div class='section-title' style='margin-top: 25px;'>📄 Generate Report</div>", unsafe_allow_html=True)
-                    risk_map = {"Low": 25, "Medium": 50, "High": 75, "Critical": 100}
-                    score = risk_map.get(threat["risk"], 0)
-
-                    st.progress(score / 100)
-                    st.caption(f"Risk Score: {score}/100")
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        if st.button("📝 Generate PDF Report", use_container_width=True, type="primary"):
-                            try:
-                                report_data = {
-                                    "Attack Type": threat["type"],
-                                    "Risk Level": threat["risk"],
-                                    "Description": threat.get("description", "N/A"),
-                                    "Input Features": ", ".join(str(v) for v in values),
-                                    "Prediction Score": str(int(pred))
-                                }
-                                
-                                with st.spinner("📄 Generating PDF report..."):
-                                    report_path = generate_report(report_data)
-                                    st.session_state.last_report_path = report_path
-                                    st.session_state.last_report_data = report_data
-                                    st.session_state.report_generated = True
-                                
-                                st.success("✅ Report generated successfully!")
-                                
-                                with open(report_path, "rb") as pdf_file:
-                                    st.download_button(
-                                        label="💾 Download Network Report PDF",
-                                        data=pdf_file.read(),
-                                        file_name=os.path.basename(report_path),
-                                        mime="application/pdf",
-                                        use_container_width=True,
-                                        key="network_download"
-                                    )
-                            except Exception as e:
-                                st.error(f"❌ Error generating report: {e}")
-                    
-                    with col2:
-                        if st.button("📋 View Report Data (JSON)", use_container_width=True):
-                                st.json(report_data)
-                                pass 
-                        
-            
-            except ValueError:
-                st.error("❌ Error: Please enter valid numbers separated by commas")
-            except Exception as e:
-                st.error(f"❌ Error during analysis: {e}")
-                st.info("ℹ️ Make sure the model files are trained and available")
-        else:
-            st.warning("⚠️ Please enter feature values to analyze")
-
-# ==================== TAB 2: WEBSITE ANALYSIS ====================
-with tab2:
-    st.markdown("""
-    <div class="input-section">
-        <div class="section-title">🌐 Enter Website URLs</div>
-        <p style="color: #666; font-size: 13px; margin: 0;">
-        Enter website URLs (one per line) to analyze for threats and vulnerabilities.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    urls_input = st.text_area(
-        "Website URLs:",
-        placeholder="https://example.com\nhttps://website.com\nhttp://another-site.org",
-        height=120,
-        help="Enter one URL per line. URLs can start with http:// or https://",
-        label_visibility="collapsed"
+        """,
+        unsafe_allow_html=True,
     )
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        analyze_website_btn = st.button("🔍 Scan Websites", use_container_width=True, type="primary", key="website_analyze")
-    
-    with col2:
-        if st.button("📋 Paste Example URLs", use_container_width=True):
-            st.info("""
-            Example URLs to test:
-            - https://google.com (Safe)
-            - https://example-phishing.com (Suspicious)
-            - http://192.168.1.1 (IP-based, suspicious)
-            """)
-    
-    # Analyze Websites
-    if analyze_website_btn:
-        if urls_input.strip():
-            url_list = [url.strip() for url in urls_input.split("\n") if url.strip()]
-            
-            if url_list:
-                with st.spinner("🔍 Scanning websites for threats..."):
-                    website_analysis = analyze_multiple_urls(url_list)
-                    st.session_state.website_analysis_result = website_analysis
-                
-                # Display Summary
-                st.markdown("<div class='section-title'>📊 Scan Summary</div>", unsafe_allow_html=True)
-                
-                col1, col2, col3, col4, col5 = st.columns(5)
-                
-                with col1:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">URLs Analyzed</div>
-                        <div class="metric-value">{website_analysis['urls_analyzed']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"""
-                    <div class="metric-card" style="background: #dc354540;">
-                        <div class="metric-label">Critical</div>
-                        <div class="metric-value">{website_analysis['critical_count']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col3:
-                    st.markdown(f"""
-                    <div class="metric-card" style="background: #fd7e1440;">
-                        <div class="metric-label">High</div>
-                        <div class="metric-value">{website_analysis['high_count']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col4:
-                    st.markdown(f"""
-                    <div class="metric-card" style="background: #ffc10740;">
-                        <div class="metric-label">Medium</div>
-                        <div class="metric-value">{website_analysis['medium_count']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col5:
-                    st.markdown(f"""
-                    <div class="metric-card" style="background: #28a74540;">
-                        <div class="metric-label">Low</div>
-                        <div class="metric-value">{website_analysis['low_count']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                # ==================== TAB 3: LOGS ====================
-                with tab3:
-                    st.markdown("<div class='section-title'>📜 Threat Logs</div>", unsafe_allow_html=True)
-                    
-                    try:
-                        with open("logs/threat_logs.json", "r") as f:
-                            logs = f.readlines()
-                        
-                        for log in reversed(logs[-10:]):  # last 10 logs
-                            data = json.loads(log)
-                            st.markdown(f"""
-                            <div class="threat-item">
-                                <div class="threat-title">{data['prediction']}</div>
-                                <div class="threat-detail">Risk: {data['risk']}</div>
-                                <div class="threat-detail">Time: {data['timestamp']}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    
-                    except:
-                        st.info("No logs available yet.")
-                # Overall Summary
-                summary_msg = website_analysis.get("summary", "")
-                if "No threats" in summary_msg:
-                    st.success(f"✅ {summary_msg}")
-                else:
-                    st.warning(f"⚠️ {summary_msg}")
-                
-                # Display Individual Results
-                st.markdown("<div class='section-title' style='margin-top: 25px;'>🔍 Detailed Results</div>", unsafe_allow_html=True)
-                
-                for idx, analysis in enumerate(website_analysis["analysis_results"], 1):
-                    risk_level = analysis.get("risk_level", "Unknown").lower()
-                    risk_class = "low" if risk_level == "low" else "medium" if risk_level == "medium" else "high" if risk_level == "high" else "critical"
-                    
-                    st.markdown(f"""
-                    <div class="url-result-card">
-                        <div class="url-header">
-                            <div class="url-name">#{idx} {analysis.get('url', 'Unknown')}</div>
-                            <span class="risk-badge {risk_class}">{risk_level}</span>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Threat Type
-                    st.markdown(f"""
-                    <div class="threat-detail"><strong>🎯 Threat Type:</strong> {analysis.get('threat_type', 'Unknown')}</div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Threat Score
-                    if "threat_score" in analysis:
-                        score = analysis["threat_score"]
-                        st.markdown(f"""
-                        <div class="threat-detail"><strong>📊 Threat Score:</strong> {score}/100</div>
-                        <div class="threat-score-bar">
-                            <div class="threat-score-fill" style="width: {min(score, 100)}%"></div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Detected Threats
-                    if analysis.get("detected_threats"):
-                        st.markdown("<div class='threat-detail'><strong>🚨 Detected Threats:</strong></div>", unsafe_allow_html=True)
-                        for threat in analysis["detected_threats"]:
-                            st.markdown(f"<div class='threat-detail' style='margin-left: 20px;'>• {threat}</div>", unsafe_allow_html=True)
-                    
-                    # Error handling
-                    if "error" in analysis:
-                        st.markdown(f"""
-                        <div class="threat-detail" style="color: #dc3545;"><strong>⚠️ Error:</strong> {analysis['error']}</div>
-                        """, unsafe_allow_html=True)
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
-                
-                # Generate Website Report
-                st.markdown("<div class='section-title' style='margin-top: 25px;'>📄 Generate Report</div>", unsafe_allow_html=True)
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if st.button("📝 Generate Website Threat Report", use_container_width=True, type="primary"):
-                        try:
-                            with st.spinner("📄 Generating PDF report..."):
-                                report_path = generate_website_report(website_analysis)
-                                st.session_state.website_report_path = report_path
-                            
-                            st.success("✅ Website threat report generated successfully!")
-                            
-                            with open(report_path, "rb") as pdf_file:
-                                st.download_button(
-                                    label="💾 Download Website Report PDF",
-                                    data=pdf_file.read(),
-                                    file_name=os.path.basename(report_path),
-                                    mime="application/pdf",
-                                    use_container_width=True,
-                                    key="website_download"
-                                )
-                        except Exception as e:
-                            st.error(f"❌ Error generating report: {e}")
-                
-                with col2:
-                    if st.button("📋 View Report Data (JSON)", use_container_width=True):
-                        st.json(website_analysis)
-            else:
-                st.warning("⚠️ Please enter at least one URL to analyze")
-        else:
-            st.warning("⚠️ Please enter website URLs to analyze")
 
-# Footer
-st.markdown("""
-<div class="footer">
-    <p><strong>🛡️ CyberHawk Threat Intelligence System</strong></p>
-    <p>Advanced network and website threat detection powered by machine learning</p>
-    <p style="margin-top: 15px; font-size: 11px;">
-    ℹ️ This system analyzes network traffic patterns and website characteristics to identify potential security threats. 
-    Always consult with security professionals before taking action on detected threats.
-    </p>
-</div>
-""", unsafe_allow_html=True)
+
+def render_css():
+    st.markdown(
+        """
+        <style>
+        .block-container { padding-top: 1.5rem; }
+        .hero {
+            background: linear-gradient(135deg, #132238 0%, #24536f 52%, #2f6f5e 100%);
+            color: white;
+            padding: 26px 30px;
+            border-radius: 8px;
+            margin-bottom: 18px;
+        }
+        .hero h1 {
+            font-size: 34px;
+            margin: 0 0 6px 0;
+            letter-spacing: 0;
+        }
+        .hero p {
+            margin: 0;
+            color: rgba(255,255,255,0.86);
+            font-size: 14px;
+        }
+        .metric-card {
+            background: #ffffff;
+            border: 1px solid #e5e9f0;
+            border-top: 4px solid #24536f;
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 94px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        }
+        .metric-label {
+            color: #68707d;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .metric-value {
+            color: #172033;
+            font-size: 22px;
+            font-weight: 800;
+            line-height: 1.15;
+            overflow-wrap: anywhere;
+        }
+        .result-card {
+            border: 1px solid #e5e9f0;
+            border-radius: 8px;
+            padding: 18px;
+            margin: 12px 0;
+            background: white;
+        }
+        .risk-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            color: white;
+            font-weight: 700;
+            font-size: 12px;
+        }
+        .pipeline {
+            border-left: 3px solid #24536f;
+            padding-left: 14px;
+            margin: 10px 0;
+            color: #243044;
+            line-height: 1.55;
+        }
+        .small-muted { color: #68707d; font-size: 13px; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def build_network_report_data(values, threat):
+    mitre = threat.get("mitre", {})
+    return {
+        "Attack Type": threat["type"],
+        "Confidence Score": f"{threat.get('confidence', 0) * 100:.2f}%",
+        "Risk Score": f"{threat.get('risk_score', 0)}/10",
+        "Risk Level": threat["risk"],
+        "MITRE Technique": f"{mitre.get('technique_id', 'N/A')} - {mitre.get('technique', 'N/A')}",
+        "CVE References": ", ".join(threat.get("cves", [])) or "N/A",
+        "Description": threat.get("description", "N/A"),
+        "Input Features": ", ".join(str(v) for v in values),
+        "Recommendations": threat.get("recommendations", []),
+    }
+
+
+def render_network_tab():
+    st.subheader("ML Attack Detection Engine")
+    st.caption("Enter 9 network-flow features. The saved Random Forest model classifies the flow, then CyberHawk maps it to risk, MITRE ATT&CK, CVEs, and mitigation guidance.")
+
+    samples = {
+        "Normal": "100, 5000, 10, 6, 0, 1023, 80, 10, 500",
+        "DoS": "500, 25000, 2, 6, 0, 1027, 9200, 250, 12500",
+        "Brute Force": "300, 15000, 15, 6, 0, 1031, 22, 20, 1000",
+        "Port Scan": "200, 10000, 20, 6, 0, 1035, 80, 10, 500",
+        "Malware": "600, 30000, 8, 6, 0, 1043, 80, 75, 3750",
+    }
+
+    with st.form("network_form"):
+        input_data = st.text_input(
+            "Network feature values",
+            value=samples["Port Scan"],
+            help="packet_count, byte_count, duration, protocol, flags, source_port, dest_port, packet_rate, data_rate",
+        )
+        col_a, col_b = st.columns([1, 2])
+        analyze_clicked = col_a.form_submit_button("Detect Threat", type="primary", use_container_width=True)
+        selected_sample = col_b.selectbox("Reference sample", list(samples.keys()), index=3)
+
+    st.caption(f"Selected reference: {samples[selected_sample]}")
+
+    if analyze_clicked:
+        try:
+            values = [float(x.strip()) for x in input_data.split(",")]
+            if len(values) != 9:
+                st.error(f"Expected 9 features, received {len(values)}.")
+                return
+
+            prediction, confidence = predict(values)
+            threat = get_threat(prediction, confidence)
+            report_data = build_network_report_data(values, threat)
+            st.session_state.network_result = report_data
+
+            write_log(
+                "network_scan",
+                {
+                    "target": "network_flow",
+                    "attack_type": threat["type"],
+                    "risk_level": threat["risk"],
+                    "risk_score": threat["risk_score"],
+                    "confidence_score": round(confidence * 100, 2),
+                },
+            )
+        except ValueError:
+            st.error("Enter numeric values separated by commas.")
+        except Exception as exc:
+            st.error(f"Analysis failed: {exc}")
+
+    if st.session_state.network_result:
+        data = st.session_state.network_result
+        cols = st.columns(4)
+        with cols[0]:
+            metric_card("Attack Type", data["Attack Type"])
+        with cols[1]:
+            metric_card("Risk Level", data["Risk Level"], risk_color(data["Risk Level"]))
+        with cols[2]:
+            metric_card("Risk Score", data["Risk Score"])
+        with cols[3]:
+            metric_card("Confidence", data["Confidence Score"])
+
+        st.markdown("#### Threat Intelligence")
+        st.write(data["Description"])
+        st.write(f"MITRE ATT&CK: {data['MITRE Technique']}")
+        st.write(f"CVE references: {data['CVE References']}")
+
+        st.markdown("#### Recommended Mitigation")
+        for item in data["Recommendations"]:
+            st.write(f"- {item}")
+
+        col_a, col_b = st.columns(2)
+        if col_a.button("Generate Network PDF", type="primary", use_container_width=True):
+            path = generate_report(data)
+            st.session_state.network_report_path = path
+            st.success("Network PDF report generated.")
+        download_pdf(st.session_state.network_report_path, "Download Network PDF", "download_network_pdf")
+        if col_b.button("Show Network JSON", use_container_width=True):
+            st.json(data)
+
+
+def render_site_summary(analysis: dict):
+    cols = st.columns(5)
+    metrics = [
+        ("URLs", analysis["urls_analyzed"], "#24536f"),
+        ("Critical", analysis["critical_count"], risk_color("Critical")),
+        ("High", analysis["high_count"], risk_color("High")),
+        ("Medium", analysis["medium_count"], risk_color("Medium")),
+        ("Low", analysis["low_count"], risk_color("Low")),
+    ]
+    for col, (label, value, color) in zip(cols, metrics):
+        with col:
+            metric_card(label, value, color)
+
+    chart_data = pd.DataFrame(
+        {
+            "Risk": ["Critical", "High", "Medium", "Low"],
+            "Count": [
+                analysis["critical_count"],
+                analysis["high_count"],
+                analysis["medium_count"],
+                analysis["low_count"],
+            ],
+        }
+    ).set_index("Risk")
+    st.bar_chart(chart_data)
+
+
+def normalize_website_analysis(analysis):
+    if not isinstance(analysis, dict):
+        return None
+
+    results = analysis.get("analysis_results")
+    if not isinstance(results, list):
+        results = []
+
+    normalized = {
+        "urls_analyzed": analysis.get("urls_analyzed", len(results)),
+        "threats_found": analysis.get(
+            "threats_found",
+            sum(1 for item in results if item.get("risk_level") in ("Medium", "High", "Critical")),
+        ),
+        "critical_count": analysis.get(
+            "critical_count", sum(1 for item in results if item.get("risk_level") == "Critical")
+        ),
+        "high_count": analysis.get(
+            "high_count", sum(1 for item in results if item.get("risk_level") == "High")
+        ),
+        "medium_count": analysis.get(
+            "medium_count", sum(1 for item in results if item.get("risk_level") == "Medium")
+        ),
+        "low_count": analysis.get(
+            "low_count", sum(1 for item in results if item.get("risk_level") == "Low")
+        ),
+        "analysis_results": results,
+        "summary": analysis.get(
+            "summary",
+            f"Analyzed {len(results)} website(s).",
+        ),
+    }
+    return normalized
+
+
+def render_website_result(site: dict, index: int):
+    risk = site.get("risk_level", "Unknown")
+    color = risk_color(risk)
+    st.markdown(
+        f"""
+        <div class="result-card">
+            <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+                <div>
+                    <div class="small-muted">URL #{index}</div>
+                    <strong>{site.get('url', 'Unknown')}</strong>
+                </div>
+                <span class="risk-pill" style="background:{color};">{risk}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Threat Type", site.get("threat_type", "Unknown"))
+    c2.metric("Risk Score", f"{site.get('risk_score', 0)}/10")
+    c3.metric("Confidence", f"{site.get('confidence_score', 0)}%")
+    c4.metric("Status Code", site.get("status_code") or "N/A")
+
+    info_cols = st.columns(2)
+    with info_cols[0]:
+        st.write(f"Domain: {site.get('domain', 'N/A')}")
+        st.write(f"IP: {site.get('ip_address', 'N/A')}")
+        st.write(f"Hosting: {site.get('hosting_provider', 'N/A')}")
+        st.write(f"Blacklist: {site.get('blacklist_status', 'N/A')}")
+    with info_cols[1]:
+        mitre = site.get("mitre", {})
+        st.write(f"MITRE: {mitre.get('technique_id', 'N/A')} - {mitre.get('technique', 'N/A')}")
+        st.write(f"CVEs: {', '.join(site.get('cves', [])) or 'N/A'}")
+        st.write(f"SSL valid: {site.get('ssl_valid', 'N/A')}")
+        st.write(f"Final URL: {site.get('final_url', 'N/A')}")
+
+    tabs = st.tabs(["Signals", "Traffic Capture", "ML Features", "Timeline", "Mitigation"])
+    with tabs[0]:
+        signals = site.get("detected_threats") or ["No suspicious URL or page signals detected."]
+        for signal in signals:
+            st.write(f"- {signal}")
+    with tabs[1]:
+        st.json(site.get("network_interaction", {}))
+    with tabs[2]:
+        st.json(
+            {
+                "extracted_features": site.get("extracted_features", {}),
+                "ml_detection": site.get("ml_detection", {}),
+                "browser_behavior": site.get("browser_behavior", {}),
+            }
+        )
+    with tabs[3]:
+        for step in site.get("timeline", []):
+            st.markdown(f"<div class='pipeline'>{step}</div>", unsafe_allow_html=True)
+    with tabs[4]:
+        for rec in site.get("recommendations", []):
+            st.write(f"- {rec}")
+
+
+def render_website_tab():
+    st.subheader("URL Intelligence and Website Threat Analysis")
+    st.caption("This is the full user URL input to AI-powered report flow: passive intelligence, controlled HTTP capture, feature extraction, ML detection, threat mapping, risk scoring, and recommendations.")
+
+    with st.form("website_form"):
+        urls_text = st.text_area(
+            "Website URLs",
+            key="urls_text",
+            height=140,
+            help="Enter one URL per line. The scanner performs a safe, bounded HTTP request only.",
+        )
+        scan_clicked = st.form_submit_button("Scan Websites", type="primary", use_container_width=True)
+
+    if scan_clicked:
+        urls = [line.strip() for line in urls_text.splitlines() if line.strip()]
+        if not urls:
+            st.warning("Enter at least one URL.")
+            return
+        with st.spinner("Running passive intelligence, traffic capture, ML detection, and risk scoring..."):
+            analysis = analyze_multiple_urls(urls)
+        st.session_state.website_analysis = analysis
+        st.session_state.website_report_path = None
+        write_log(
+            "website_scan",
+            {
+                "target": ", ".join(urls[:3]),
+                "attack_type": "multiple_url_analysis",
+                "risk_level": "Mixed",
+                "risk_score": max((item.get("risk_score", 0) for item in analysis["analysis_results"]), default=0),
+                "confidence_score": max((item.get("confidence_score", 0) for item in analysis["analysis_results"]), default=0),
+            },
+        )
+
+    analysis = normalize_website_analysis(st.session_state.website_analysis)
+    if not analysis:
+        st.info("Run a scan to see URL intelligence, ML detection, and report output here.")
+        return
+
+    st.session_state.website_analysis = analysis
+
+    if analysis.get("threats_found", 0) == 0:
+        st.success(analysis.get("summary", "Scan completed successfully."))
+    else:
+        st.warning(analysis.get("summary", "Scan completed with findings."))
+    render_site_summary(analysis)
+
+    if st.button("Generate Website PDF", type="primary", use_container_width=True):
+        path = generate_website_report(analysis)
+        st.session_state.website_report_path = path
+        st.success("Website PDF report generated.")
+    download_pdf(st.session_state.website_report_path, "Download Website PDF", "download_website_pdf")
+
+    st.markdown("### Detailed Results")
+    for idx, site in enumerate(analysis.get("analysis_results", []), 1):
+        with st.expander(f"{idx}. {site.get('url', 'Unknown')} - {site.get('risk_level', 'Unknown')}", expanded=idx == 1):
+            render_website_result(site, idx)
+
+
+def render_logs_tab():
+    st.subheader("Scan Logs")
+    logs = read_logs()
+    if not logs:
+        st.info("No scans have been logged yet.")
+        return
+    df = pd.DataFrame(logs)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    risk_counts = df.get("risk_level")
+    if risk_counts is not None:
+        st.bar_chart(risk_counts.value_counts())
+
+
+def render_design_tab():
+    st.subheader("Final-Year System Design Flow")
+    flow = [
+        "User enters a URL or network-flow features.",
+        "URL intelligence scanner extracts the domain and checks DNS, SSL, blacklist, and reputation signals.",
+        "Controlled interaction captures headers, redirects, cookies, page links, forms, scripts, downloads, and API-like calls.",
+        "Feature engineering converts raw observations into model-ready traffic features.",
+        "The ML attack detection engine predicts Normal, DoS, Brute Force, Port Scan, Botnet, or Malware Communication.",
+        "Threat intelligence maps the result to MITRE ATT&CK techniques and CVE examples.",
+        "Risk scoring combines attack probability, severity, exploitability, and URL signals.",
+        "The AI recommendation layer produces practical mitigation steps.",
+        "The dashboard shows results, logs the event, and generates a PDF report.",
+    ]
+    for step in flow:
+        st.markdown(f"<div class='pipeline'>{step}</div>", unsafe_allow_html=True)
+
+    st.markdown("#### Viva One-Liner")
+    st.info(
+        "This system takes a URL, analyzes its network behavior, detects cyber threats using machine learning, maps them to global threat intelligence frameworks, calculates risk, and automatically generates actionable mitigation reports."
+    )
+
+
+def main():
+    init_state()
+    render_css()
+
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>CyberHawk AI Threat Intelligence</h1>
+            <p>URL intelligence, ML attack detection, MITRE/CVE mapping, risk scoring, PDF reporting, and mitigation recommendations.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    tab_url, tab_network, tab_logs, tab_design = st.tabs(
+        ["URL Analysis", "Network ML", "Logs", "System Design"]
+    )
+    with tab_url:
+        render_website_tab()
+    with tab_network:
+        render_network_tab()
+    with tab_logs:
+        render_logs_tab()
+    with tab_design:
+        render_design_tab()
+
+
+if __name__ == "__main__":
+    main()

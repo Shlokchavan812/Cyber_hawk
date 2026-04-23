@@ -1,339 +1,216 @@
-from fpdf import FPDF
+from __future__ import annotations
+
 import os
+import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
+
+from fpdf import FPDF
 
 
-def generate_network_report(info, output_path=None):
-    """
-    Generate a professional PDF report for the threat analysis.
-    
-    Args:
-        info: Dictionary containing threat information
-        output_path: Path to save the report (default: report_TIMESTAMP.pdf in project root)
-    """
-    if output_path is None:
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = os.path.join(base_dir, f"reports")
-        os.makedirs(output_path, exist_ok=True)
-        output_path = os.path.join(output_path, f"threat_report_{timestamp}.pdf")
-    
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # Set margins
-    pdf.set_margins(15, 15, 15)
-    
-    # Header Section
-    pdf.set_font("Arial", style="B", size=24)
-    pdf.set_text_color(220, 53, 69)  # Red color
-    pdf.cell(0, 15, txt="🛡️ CyberHawk", ln=True)
-    
-    pdf.set_font("Arial", style="", size=11)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 8, txt="Cyber Threat Intelligence System", ln=True)
-    pdf.ln(3)
-    
-    # Horizontal line
-    pdf.set_draw_color(220, 53, 69)
-    pdf.line(15, pdf.get_y(), 195, pdf.get_y())
-    pdf.ln(5)
-    
-    # Report Metadata
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 8, txt="Report Details", ln=True)
-    
-    pdf.set_font("Arial", size=10)
-    pdf.set_text_color(80, 80, 80)
-    generated_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    pdf.cell(0, 7, txt=f"Generated: {generated_time}", ln=True)
-    pdf.cell(0, 7, txt=f"Report Type: Network Threat Analysis", ln=True)
-    pdf.ln(3)
-    
-    # Threat Analysis Section
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.set_text_color(220, 53, 69)
-    pdf.cell(0, 10, txt="Threat Analysis Results", ln=True)
-    pdf.ln(2)
-    
-    # Content
-    pdf.set_font("Arial", size=10)
-    pdf.set_text_color(0, 0, 0)
-    
-    # Define field order for better readability
-    field_order = ["Attack Type", "Risk Level", "Description", "Input Features", "Prediction Score"]
-    
-    for field in field_order:
-        if field in info:
-            pdf.set_font("Arial", style="B", size=10)
-            pdf.set_text_color(50, 50, 50)
-            pdf.cell(50, 8, txt=f"{field}:", ln=False)
-            
-            pdf.set_font("Arial", style="", size=10)
-            pdf.set_text_color(0, 0, 0)
-            
-            value = str(info[field])
-            # Handle long text wrapping
-            if len(value) > 80:
-                pdf.multi_cell(0, 6, txt=value, align='L')
-            else:
-                pdf.cell(0, 8, txt=value, ln=True)
-            pdf.ln(1)
-    
-    # Risk Level Color Indicator
-    pdf.ln(3)
-    pdf.set_font("Arial", style="B", size=10)
-    pdf.set_text_color(220, 53, 69)
-    pdf.cell(0, 8, txt="Risk Level Summary", ln=True)
-    
-    risk_level = info.get("Risk Level", "Unknown").upper()
-    if "CRITICAL" in risk_level:
-        color = (220, 53, 69)  # Red
-    elif "HIGH" in risk_level:
-        color = (255, 193, 7)  # Orange
-    elif "MEDIUM" in risk_level:
-        color = (255, 152, 0)  # Yellow
-    else:
-        color = (76, 175, 80)  # Green
-    
-    pdf.set_fill_color(*color)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _report_path(prefix: str) -> str:
+    reports_dir = os.path.join(BASE_DIR, "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return os.path.join(reports_dir, f"{prefix}_{timestamp}.pdf")
+
+
+def _ascii(value) -> str:
+    text = str(value)
+    text = text.replace("\u2022", "-")
+    text = text.encode("latin-1", errors="replace").decode("latin-1")
+    # FPDF cannot wrap one very long token, so give URLs/hashes safe breakpoints.
+    tokens = []
+    for token in text.split(" "):
+        if len(token) > 70:
+            token = " ".join(token[i : i + 70] for i in range(0, len(token), 70))
+        tokens.append(token)
+    return " ".join(tokens)
+
+
+def _clean_filename(value: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_.-]+", "_", value).strip("_")
+
+
+class CyberHawkPDF(FPDF):
+    def header(self):
+        self.set_font("Arial", "B", 18)
+        self.set_text_color(25, 42, 86)
+        self.cell(0, 10, "CyberHawk Threat Intelligence Report", ln=True)
+        self.set_font("Arial", "", 9)
+        self.set_text_color(90, 90, 90)
+        self.cell(0, 6, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
+        self.set_draw_color(25, 42, 86)
+        self.line(10, self.get_y() + 2, 200, self.get_y() + 2)
+        self.ln(8)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Arial", "I", 8)
+        self.set_text_color(120, 120, 120)
+        self.cell(0, 10, f"CyberHawk educational security report | Page {self.page_no()}", align="C")
+
+    def section(self, title: str):
+        self.ln(2)
+        self.set_x(self.l_margin)
+        self.set_font("Arial", "B", 12)
+        self.set_text_color(25, 42, 86)
+        self.cell(0, 8, _ascii(title), ln=True)
+        self.set_text_color(0, 0, 0)
+
+    def key_value(self, key: str, value):
+        self.set_x(self.l_margin)
+        self.set_font("Arial", "B", 9)
+        self.cell(0, 5, _ascii(f"{key}:"), ln=True)
+        self.set_font("Arial", "", 9)
+        text = _ascii(value if value not in (None, "") else "N/A")
+        self.set_x(self.l_margin)
+        self.multi_cell(0, 5, text)
+        self.ln(1)
+
+    def bullet_list(self, items: Iterable[str]):
+        self.set_font("Arial", "", 9)
+        for item in items:
+            self.set_x(self.l_margin)
+            self.multi_cell(0, 5, _ascii(f"- {item}"))
+
+
+def _risk_fill(pdf: FPDF, risk_level: str):
+    colors = {
+        "Critical": (196, 49, 75),
+        "High": (226, 125, 47),
+        "Medium": (235, 177, 52),
+        "Low": (56, 142, 60),
+        "Unknown": (120, 120, 120),
+    }
+    pdf.set_fill_color(*colors.get(risk_level, colors["Unknown"]))
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", style="B", size=11)
-    pdf.cell(0, 10, txt=f"  {risk_level}", ln=True, fill=True)
-    
-    # Recommendations
-    pdf.ln(5)
-    pdf.set_font("Arial", style="B", size=10)
-    pdf.set_text_color(220, 53, 69)
-    pdf.cell(0, 8, txt="Recommendations", ln=True)
-    
-    pdf.set_font("Arial", size=9)
+    pdf.set_font("Arial", "B", 10)
+    pdf.set_x(pdf.l_margin)
+    pdf.cell(0, 8, _ascii(f"Risk Level: {risk_level}"), ln=True, fill=True)
+    pdf.set_x(pdf.l_margin)
     pdf.set_text_color(0, 0, 0)
-    
-    risk = info.get("Risk Level", "").lower()
-    if "critical" in risk or "high" in risk:
-        recommendations = [
-            "• Immediately isolate affected systems from the network",
-            "• Initiate incident response procedures",
-            "• Notify security operations center (SOC)",
-            "• Begin forensic analysis and logging",
-            "• Review access logs for compromise indicators"
-        ]
-    elif "medium" in risk:
-        recommendations = [
-            "• Monitor affected systems closely",
-            "• Review recent system activity and logs",
-            "• Update security policies if needed",
-            "• Schedule security assessment"
-        ]
-    else:
-        recommendations = [
-            "• Continue normal monitoring",
-            "• Maintain security best practices",
-            "• Keep systems updated and patched"
-        ]
-    
-    for rec in recommendations:
-        pdf.multi_cell(0, 6, txt=rec, align='L')
-    
-    # Footer
-    pdf.ln(5)
-    pdf.set_draw_color(220, 53, 69)
-    pdf.line(15, pdf.get_y(), 195, pdf.get_y())
-    pdf.ln(3)
-    
-    pdf.set_font("Arial", style="I", size=8)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, txt="This report was automatically generated by the Cyber Threat Intelligence System (CyberHawk).", align='C', ln=True)
-    pdf.cell(0, 6, txt="For more information, visit: cyberhawk.security", align='C', ln=True)
-    
-    pdf.output(output_path)
-    return output_path
 
 
-def generate_website_report(website_analysis, output_path=None):
-    """
-    Generate a professional PDF report for website threat analysis.
-    
-    Args:
-        website_analysis: Dictionary containing website threat analysis results
-        output_path: Path to save the report
-    """
+def generate_network_report(info: Dict, output_path: Optional[str] = None) -> str:
     if output_path is None:
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = os.path.join(base_dir, f"reports")
-        os.makedirs(output_path, exist_ok=True)
-        output_path = os.path.join(output_path, f"website_threat_report_{timestamp}.pdf")
-    
-    pdf = FPDF()
+        output_path = _report_path("network_threat_report")
+
+    pdf = CyberHawkPDF()
+    pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
-    
-    # Set margins
-    pdf.set_margins(15, 15, 15)
-    
-    # Header Section
-    pdf.set_font("Arial", style="B", size=24)
-    pdf.set_text_color(220, 53, 69)  # Red color
-    pdf.cell(0, 15, txt="🛡️ CyberHawk", ln=True)
-    
-    pdf.set_font("Arial", style="", size=11)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 8, txt="Website Threat Intelligence Report", ln=True)
-    pdf.ln(3)
-    
-    # Horizontal line
-    pdf.set_draw_color(220, 53, 69)
-    pdf.line(15, pdf.get_y(), 195, pdf.get_y())
-    pdf.ln(5)
-    
-    # Report Metadata
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 8, txt="Report Details", ln=True)
-    
-    pdf.set_font("Arial", size=10)
-    pdf.set_text_color(80, 80, 80)
-    generated_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    pdf.cell(0, 7, txt=f"Generated: {generated_time}", ln=True)
-    pdf.cell(0, 7, txt=f"Report Type: Website Threat Analysis", ln=True)
-    
-    # Summary Section
-    if "urls_analyzed" in website_analysis:
-        pdf.ln(2)
-        pdf.cell(0, 7, txt=f"URLs Analyzed: {website_analysis['urls_analyzed']}", ln=True)
-        pdf.cell(0, 7, txt=f"Threats Found: {website_analysis['threats_found']}", ln=True)
-    
-    pdf.ln(3)
-    
-    # Threat Summary Statistics
-    if "critical_count" in website_analysis:
-        pdf.set_font("Arial", style="B", size=11)
-        pdf.set_text_color(220, 53, 69)
-        pdf.cell(0, 8, txt="Threat Summary", ln=True)
-        
-        pdf.set_font("Arial", size=10)
-        pdf.set_text_color(0, 0, 0)
-        pdf.cell(0, 7, txt=f"🔴 Critical: {website_analysis.get('critical_count', 0)}", ln=True)
-        pdf.cell(0, 7, txt=f"🟠 High: {website_analysis.get('high_count', 0)}", ln=True)
-        pdf.cell(0, 7, txt=f"🟡 Medium: {website_analysis.get('medium_count', 0)}", ln=True)
-        pdf.cell(0, 7, txt=f"🟢 Low: {website_analysis.get('low_count', 0)}", ln=True)
-        pdf.ln(3)
-    
-    # Individual Website Analysis Results
-    pdf.set_font("Arial", style="B", size=11)
-    pdf.set_text_color(220, 53, 69)
-    pdf.cell(0, 8, txt="Website Analysis Results", ln=True)
-    pdf.ln(2)
-    
-    if "analysis_results" in website_analysis:
-        for idx, site_analysis in enumerate(website_analysis["analysis_results"], 1):
-            pdf.set_font("Arial", style="B", size=10)
-            pdf.set_text_color(50, 50, 50)
-            pdf.cell(0, 8, txt=f"Website #{idx}", ln=True)
-            
-            pdf.set_font("Arial", size=9)
-            pdf.set_text_color(0, 0, 0)
-            
-            # URL
-            pdf.cell(30, 7, txt="URL: ", ln=False)
-            url = site_analysis.get("url", "N/A")
-            if len(url) > 80:
-                pdf.multi_cell(0, 5, txt=url, align='L')
-            else:
-                pdf.cell(0, 7, txt=url, ln=True)
-            
-            # Threat Type and Risk Level
-            pdf.cell(0, 7, txt=f"Threat Type: {site_analysis.get('threat_type', 'Unknown')}", ln=True)
-            
-            # Risk Level with color
-            risk_level = site_analysis.get("risk_level", "Unknown")
-            pdf.cell(0, 7, txt=f"Risk Level: {risk_level}", ln=True)
-            
-            # Threat Score
-            if "threat_score" in site_analysis:
-                pdf.cell(0, 7, txt=f"Threat Score: {site_analysis['threat_score']}/100", ln=True)
-            
-            # Detected Threats
-            if site_analysis.get("detected_threats"):
-                pdf.set_font("Arial", style="B", size=9)
-                pdf.cell(0, 7, txt="Detected Threats:", ln=True)
-                pdf.set_font("Arial", size=9)
-                for threat in site_analysis["detected_threats"]:
-                    pdf.cell(0, 6, txt=f"  • {threat}", ln=True)
-            
-            # Error handling
-            if "error" in site_analysis:
-                pdf.set_text_color(220, 53, 69)
-                pdf.cell(0, 7, txt=f"Error: {site_analysis['error']}", ln=True)
-                pdf.set_text_color(0, 0, 0)
-            
-            pdf.ln(2)
-    
-    # Recommendations
-    pdf.ln(3)
-    pdf.set_font("Arial", style="B", size=10)
-    pdf.set_text_color(220, 53, 69)
-    pdf.cell(0, 8, txt="Recommendations", ln=True)
-    
-    pdf.set_font("Arial", size=9)
-    pdf.set_text_color(0, 0, 0)
-    
-    threat_found = website_analysis.get("threats_found", 0) > 0
-    if threat_found:
-        if website_analysis.get("critical_count", 0) > 0:
-            recommendations = [
-                "• DO NOT visit these websites",
-                "• Block these domains at your firewall/proxy level",
-                "• Implement email filters to prevent links to these sites",
-                "• Alert users about the detected threats",
-                "• Run security awareness training"
-            ]
-        elif website_analysis.get("high_count", 0) > 0:
-            recommendations = [
-                "• Exercise caution before visiting these websites",
-                "• Consider blocking at network level",
-                "• Monitor any systems that have accessed these sites",
-                "• Update security awareness policies",
-                "• Schedule periodic security audits"
-            ]
-        else:
-            recommendations = [
-                "• Monitor these websites for changes",
-                "• Review access logs for these domains",
-                "• Maintain standard security measures",
-                "• Update security policies as needed"
-            ]
-    else:
-        recommendations = [
-            "• Continue regular security monitoring",
-            "• Maintain current security measures",
-            "• Review this report periodically",
-            "• Keep security systems updated"
+
+    pdf.section("Network Detection Summary")
+    for field in [
+        "Attack Type",
+        "Confidence Score",
+        "Risk Score",
+        "Risk Level",
+        "MITRE Technique",
+        "CVE References",
+        "Description",
+        "Input Features",
+    ]:
+        if field in info:
+            pdf.key_value(field, info[field])
+
+    _risk_fill(pdf, info.get("Risk Level", "Unknown"))
+
+    if info.get("Recommendations"):
+        pdf.section("Mitigation Recommendations")
+        pdf.bullet_list(info["Recommendations"])
+
+    pdf.section("Presentation Flow")
+    pdf.bullet_list(
+        [
+            "Feature values are preprocessed using the saved scaler.",
+            "The Random Forest model classifies the traffic pattern.",
+            "The class is mapped to MITRE ATT&CK, CVE references, and mitigations.",
+            "Risk is calculated from model confidence, severity, and exploitability.",
         ]
-    
-    for rec in recommendations:
-        pdf.multi_cell(0, 6, txt=rec, align='L')
-    
-    # Footer
-    pdf.ln(5)
-    pdf.set_draw_color(220, 53, 69)
-    pdf.line(15, pdf.get_y(), 195, pdf.get_y())
-    pdf.ln(3)
-    
-    pdf.set_font("Arial", style="I", size=8)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, txt="This report was automatically generated by the Cyber Threat Intelligence System (CyberHawk).", align='C', ln=True)
-    pdf.cell(0, 6, txt="For more information, visit: cyberhawk.security", align='C', ln=True)
-    
+    )
+
     pdf.output(output_path)
     return output_path
 
 
-def generate_report(info, output_path=None):
-    """
-    Legacy function - redirects to network report for backward compatibility
-    """
+def _write_website_detail(pdf: CyberHawkPDF, site: Dict, index: int):
+    pdf.section(f"Website #{index}")
+    pdf.key_value("URL", site.get("url", "N/A"))
+    pdf.key_value("Final URL", site.get("final_url", "N/A"))
+    pdf.key_value("Domain", site.get("domain", "N/A"))
+    pdf.key_value("IP Address", site.get("ip_address", "N/A"))
+    pdf.key_value("Hosting", site.get("hosting_provider", "N/A"))
+    pdf.key_value("SSL Valid", site.get("ssl_valid", "N/A"))
+    pdf.key_value("Blacklist Status", site.get("blacklist_status", "N/A"))
+    pdf.key_value("Attack Type", site.get("threat_type", "N/A"))
+    pdf.key_value("Confidence Score", f"{site.get('confidence_score', 0)}%")
+    pdf.key_value("Risk Score", f"{site.get('risk_score', 0)}/10")
+    pdf.key_value("Risk Level", site.get("risk_level", "Unknown"))
+
+    mitre = site.get("mitre") or site.get("threat_intelligence", {}).get("mitre", {})
+    if mitre:
+        pdf.key_value("MITRE Mapping", f"{mitre.get('technique_id', 'N/A')} - {mitre.get('technique', 'N/A')}")
+    pdf.key_value("CVE References", ", ".join(site.get("cves", [])) or "N/A")
+
+    if site.get("detected_threats"):
+        pdf.section("Detected Signals")
+        pdf.bullet_list(site["detected_threats"])
+
+    behavior = site.get("browser_behavior", {})
+    if behavior:
+        pdf.section("Captured Behavior")
+        pdf.key_value("Scripts", behavior.get("script_count", 0))
+        pdf.key_value("Forms", behavior.get("form_count", 0))
+        pdf.key_value("Hidden Iframes", behavior.get("hidden_iframes", 0))
+        pdf.key_value("API Calls", len(behavior.get("api_calls", [])))
+        pdf.key_value("Suspicious Downloads", len(behavior.get("suspicious_downloads", [])))
+
+    if site.get("recommendations"):
+        pdf.section("Mitigation Recommendations")
+        pdf.bullet_list(site["recommendations"])
+
+
+def generate_website_report(website_analysis: Dict, output_path: Optional[str] = None) -> str:
+    if output_path is None:
+        output_path = _report_path("website_threat_report")
+
+    pdf = CyberHawkPDF()
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+
+    pdf.section("Executive Summary")
+    pdf.key_value("URLs Analyzed", website_analysis.get("urls_analyzed", 0))
+    pdf.key_value("Threats Found", website_analysis.get("threats_found", 0))
+    pdf.key_value("Critical", website_analysis.get("critical_count", 0))
+    pdf.key_value("High", website_analysis.get("high_count", 0))
+    pdf.key_value("Medium", website_analysis.get("medium_count", 0))
+    pdf.key_value("Low", website_analysis.get("low_count", 0))
+    pdf.key_value("Summary", website_analysis.get("summary", "N/A"))
+
+    pdf.section("End-to-End Pipeline")
+    pdf.bullet_list(
+        [
+            "User submits one or more URLs.",
+            "CyberHawk performs passive URL, DNS, SSL, and reputation checks.",
+            "A controlled HTTP request captures headers, redirects, cookies, links, and page signals.",
+            "Behavior is converted into ML-friendly network features.",
+            "The saved ML model predicts the likely attack pattern.",
+            "Threat intelligence maps the result to MITRE ATT&CK, CVEs, risk, and mitigation guidance.",
+        ]
+    )
+
+    for idx, site in enumerate(website_analysis.get("analysis_results", []), 1):
+        if pdf.get_y() > 230:
+            pdf.add_page()
+        _write_website_detail(pdf, site, idx)
+
+    pdf.output(output_path)
+    return output_path
+
+
+def generate_report(info: Dict, output_path: Optional[str] = None) -> str:
     return generate_network_report(info, output_path)

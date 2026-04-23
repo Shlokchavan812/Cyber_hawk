@@ -1,316 +1,258 @@
 #!/usr/bin/env python3
 """
-Test script for the Cyber Threat Intelligence System.
-Tests all components to ensure they work correctly.
+Smoke tests for the CyberHawk threat intelligence system.
 """
 
-import sys
+from __future__ import annotations
+
 import os
+import sys
 from pathlib import Path
 
-# Add project root to path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
 
-def test_imports():
-    """Test that all required modules can be imported."""
-    print("=" * 60)
-    print("TEST 1: Module Imports")
-    print("=" * 60)
-    
-    try:
-        from src.predict import predict
-        print("✓ predict module imported successfully")
-    except Exception as e:
-        print(f"✗ Failed to import predict: {e}")
-        return False
-    
-    try:
-        from src.threat_intel import get_threat
-        print("✓ threat_intel module imported successfully")
-    except Exception as e:
-        print(f"✗ Failed to import threat_intel: {e}")
-        return False
-    
-    try:
-        from src.report_generator import generate_report
-        print("✓ report_generator module imported successfully")
-    except Exception as e:
-        print(f"✗ Failed to import report_generator: {e}")
-        return False
-    
-    try:
-        from src.preprocessing import load_and_preprocess
-        print("✓ preprocessing module imported successfully")
-    except Exception as e:
-        print(f"✗ Failed to import preprocessing: {e}")
-        return False
-    
-    print()
-    return True
+PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 
-def test_model_files():
-    """Test that model files exist."""
-    print("=" * 60)
-    print("TEST 2: Model Files Validation")
-    print("=" * 60)
-    
-    models_dir = project_root / "models"
-    required_files = ["model.pkl", "scaler.pkl", "label_encoder.pkl"]
-    
-    all_exist = True
-    for file in required_files:
-        path = models_dir / file
-        if path.exists():
-            size = path.stat().st_size
-            print(f"✓ {file} exists ({size:,} bytes)")
-        else:
-            print(f"✗ {file} NOT FOUND")
-            all_exist = False
-    
-    print()
-    return all_exist
+def print_header(title: str):
+    print("=" * 72)
+    print(title)
+    print("=" * 72)
 
 
-def test_predictions():
-    """Test prediction functionality."""
-    print("=" * 60)
-    print("TEST 3: Threat Predictions")
-    print("=" * 60)
-    
-    from src.predict import predict
-    from src.threat_intel import get_threat
-    
-    # Test cases with sample data
-    test_cases = [
-        {
-            "name": "Normal Traffic",
-            "features": [100, 5000, 10, 6, 0, 1023, 80, 10, 500],
-            "expected_risk": "Low"
-        },
-        {
-            "name": "DoS Attack",
-            "features": [500, 25000, 2, 6, 0, 1027, 9200, 250, 12500],
-            "expected_risk": "High"
-        },
-        {
-            "name": "Malware",
-            "features": [600, 30000, 8, 6, 0, 1043, 80, 75, 3750],
-            "expected_risk": "Critical"
-        },
-        {
-            "name": "Brute Force",
-            "features": [300, 15000, 15, 6, 0, 1031, 22, 20, 1000],
-            "expected_risk": "Medium"
-        },
-        {
-            "name": "Port Scan",
-            "features": [200, 10000, 20, 6, 0, 1035, 80, 10, 500],
-            "expected_risk": "Medium"
-        },
-        {
-            "name": "Botnet",
-            "features": [450, 22500, 25, 6, 0, 1039, 80, 18, 900],
-            "expected_risk": "High"
-        }
+def test_imports() -> bool:
+    print_header("TEST 1: Module imports")
+    modules = [
+        ("src.predict", "predict"),
+        ("src.threat_intel", "get_threat"),
+        ("src.report_generator", "generate_report"),
+        ("src.website_threat_analyzer", "analyze_multiple_urls"),
+        ("src.preprocessing", "load_and_preprocess"),
     ]
-    
-    all_passed = True
-    for test in test_cases:
+    ok = True
+    for module, symbol in modules:
         try:
-            pred = predict(test["features"])
-            threat = get_threat(pred)
-            
-            risk = threat["risk"]
-            threat_type = threat["type"]
-            
-            # Check if risk level matches expected
-            if risk == test["expected_risk"]:
-                status = "✓"
-            else:
-                status = "⚠"
-                all_passed = False
-            
-            print(f"{status} {test['name']:20} → {threat_type:20} (Risk: {risk})")
-            
-        except Exception as e:
-            print(f"✗ {test['name']:20} → ERROR: {e}")
-            all_passed = False
-    
+            imported = __import__(module, fromlist=[symbol])
+            getattr(imported, symbol)
+            print(f"PASS {module}.{symbol}")
+        except Exception as exc:
+            ok = False
+            print(f"FAIL {module}.{symbol}: {exc}")
     print()
-    return all_passed
+    return ok
 
 
-def test_report_generation():
-    """Test PDF report generation."""
-    print("=" * 60)
-    print("TEST 4: Report Generation")
-    print("=" * 60)
-    
-    from src.report_generator import generate_report
-    
-    try:
-        test_report_path = project_root / "test_report.pdf"
-        
-        report_data = {
-            "Test Report": "System Test",
-            "Status": "Passed",
-            "Threat Type": "Normal Traffic",
-            "Risk Level": "Low"
-        }
-        
-        generated_path = generate_report(report_data, str(test_report_path))
-        
-        if os.path.exists(generated_path):
-            size = os.path.getsize(generated_path)
-            print(f"✓ PDF report generated successfully ({size:,} bytes)")
-            print(f"  Path: {generated_path}")
-            
-            # Clean up test report
-            os.remove(generated_path)
-            print("✓ Test report cleaned up")
-            print()
-            return True
+def test_model_files() -> bool:
+    print_header("TEST 2: Model files")
+    models_dir = PROJECT_ROOT / "models"
+    ok = True
+    for filename in ["model.pkl", "scaler.pkl", "label_encoder.pkl"]:
+        path = models_dir / filename
+        if path.exists():
+            print(f"PASS {filename} exists ({path.stat().st_size:,} bytes)")
         else:
-            print("✗ Report file was not created")
-            print()
-            return False
-            
-    except Exception as e:
-        print(f"✗ Failed to generate report: {e}")
-        print()
-        return False
+            ok = False
+            print(f"FAIL {filename} is missing")
+    print()
+    return ok
 
 
-def test_data_loading():
-    """Test data loading and preprocessing."""
-    print("=" * 60)
-    print("TEST 5: Data Loading & Preprocessing")
-    print("=" * 60)
-    
-    from src.preprocessing import load_and_preprocess
-    
-    try:
-        data_path = project_root / "data" / "dataset.csv"
-        
-        if not data_path.exists():
-            print(f"✗ Dataset not found at {data_path}")
-            print()
-            return False
-        
-        X, y, scaler, le = load_and_preprocess(str(data_path))
-        
-        print(f"✓ Data loaded successfully")
-        print(f"  - Feature matrix shape: {X.shape}")
-        print(f"  - Target variable shape: {y.shape}")
-        print(f"  - Number of classes: {len(le.classes_)}")
-        print(f"  - Classes: {', '.join(le.classes_)}")
-        print()
-        return True
-        
-    except Exception as e:
-        print(f"✗ Failed to load/preprocess data: {e}")
-        print()
-        return False
-
-
-def test_end_to_end():
-    """Test complete end-to-end workflow."""
-    print("=" * 60)
-    print("TEST 6: End-to-End Workflow")
-    print("=" * 60)
-    
+def test_predictions() -> bool:
+    print_header("TEST 3: ML predictions and threat intelligence")
     from src.predict import predict
     from src.threat_intel import get_threat
-    from src.report_generator import generate_report
-    
+
+    test_cases = [
+        ("Normal Traffic", [100, 5000, 10, 6, 0, 1023, 80, 10, 500], "Low"),
+        ("DoS Attack", [500, 25000, 2, 6, 0, 1027, 9200, 250, 12500], "High"),
+        ("Malware", [600, 30000, 8, 6, 0, 1043, 80, 75, 3750], "Critical"),
+        ("Brute Force", [300, 15000, 15, 6, 0, 1031, 22, 20, 1000], "Medium"),
+        ("Port Scan", [200, 10000, 20, 6, 0, 1035, 80, 10, 500], "Medium"),
+        ("Botnet", [450, 22500, 25, 6, 0, 1039, 80, 18, 900], "High"),
+    ]
+
+    ok = True
+    for name, features, expected_risk in test_cases:
+        try:
+            prediction, confidence = predict(features)
+            threat = get_threat(prediction, confidence)
+            matched = threat["risk"] == expected_risk
+            ok = ok and matched
+            status = "PASS" if matched else "FAIL"
+            print(
+                f"{status} {name:<16} -> {threat['type']:<24} "
+                f"risk={threat['risk']:<8} confidence={confidence * 100:.2f}%"
+            )
+        except Exception as exc:
+            ok = False
+            print(f"FAIL {name}: {exc}")
+    print()
+    return ok
+
+
+def test_report_generation() -> bool:
+    print_header("TEST 4: PDF report generation")
+    from src.report_generator import generate_report, generate_website_report
+
     try:
-        # Sample network traffic data (Brute Force Attack)
-        sample_data = [300, 15000, 15, 6, 0, 1031, 22, 20, 1000]
-        
-        # Step 1: Predict
-        print("Step 1: Making prediction...")
-        pred = predict(sample_data)
-        print(f"  ✓ Prediction made: {int(pred)}")
-        
-        # Step 2: Get threat info
-        print("Step 2: Getting threat intelligence...")
-        threat = get_threat(pred)
-        print(f"  ✓ Threat type: {threat['type']}")
-        print(f"  ✓ Risk level: {threat['risk']}")
-        
-        # Step 3: Generate report
-        print("Step 3: Generating report...")
-        test_report_path = project_root / "test_e2e_report.pdf"
-        report_data = {
-            "Threat Analysis": "End-to-End Test",
-            "Type": threat['type'],
-            "Risk": threat['risk'],
-            "Features": ", ".join(str(f) for f in sample_data)
+        network_path = PROJECT_ROOT / "test_network_report.pdf"
+        website_path = PROJECT_ROOT / "test_website_report.pdf"
+        network_data = {
+            "Attack Type": "Port Scan",
+            "Confidence Score": "92.00%",
+            "Risk Score": "5.1/10",
+            "Risk Level": "Medium",
+            "MITRE Technique": "T1046 - Network Service Scanning",
+            "CVE References": "CVE-2021-44228",
+            "Description": "Test report",
+            "Input Features": "200, 10000, 20, 6, 0, 1035, 80, 10, 500",
+            "Recommendations": ["Block source IP", "Disable unused ports"],
         }
-        
-        generated_path = generate_report(report_data, str(test_report_path))
-        
-        if os.path.exists(generated_path):
-            print(f"  ✓ Report generated")
-            os.remove(generated_path)
-        
-        print("✓ End-to-end workflow completed successfully")
+        website_data = {
+            "urls_analyzed": 1,
+            "threats_found": 1,
+            "critical_count": 0,
+            "high_count": 0,
+            "medium_count": 1,
+            "low_count": 0,
+            "summary": "Test website report",
+            "analysis_results": [
+                {
+                    "url": "https://example.test",
+                    "domain": "example.test",
+                    "ip_address": "127.0.0.1",
+                    "hosting_provider": "local",
+                    "ssl_valid": True,
+                    "blacklist_status": "Not listed",
+                    "threat_type": "Suspicious Website",
+                    "risk_level": "Medium",
+                    "risk_score": 4.2,
+                    "confidence_score": 50,
+                    "mitre": {"technique_id": "T1189", "technique": "Drive-by Compromise"},
+                    "cves": ["CVE-2021-44228"],
+                    "detected_threats": ["Test signal"],
+                    "browser_behavior": {"script_count": 1, "form_count": 0, "hidden_iframes": 0},
+                    "recommendations": ["Review in a sandbox"],
+                }
+            ],
+        }
+
+        generated_network = generate_report(network_data, str(network_path))
+        generated_website = generate_website_report(website_data, str(website_path))
+        ok = Path(generated_network).exists() and Path(generated_website).exists()
+        print(f"PASS network report: {generated_network}")
+        print(f"PASS website report: {generated_website}")
+        for path in [network_path, website_path]:
+            if path.exists():
+                path.unlink()
         print()
-        return True
-        
-    except Exception as e:
-        print(f"✗ End-to-end workflow failed: {e}")
-        import traceback
-        traceback.print_exc()
+        return ok
+    except Exception as exc:
+        print(f"FAIL report generation: {exc}")
         print()
         return False
 
 
-def main():
-    """Run all tests."""
-    print("\n")
-    print("╔" + "=" * 58 + "╗")
-    print("║" + " " * 10 + "Cyber Threat Intelligence System" + " " * 16 + "║")
-    print("║" + " " * 20 + "System Test Suite" + " " * 22 + "║")
-    print("╚" + "=" * 58 + "╝")
+def test_data_loading() -> bool:
+    print_header("TEST 5: Data loading and preprocessing")
+    from src.preprocessing import load_and_preprocess
+
+    try:
+        X, y, scaler, encoder = load_and_preprocess(str(PROJECT_ROOT / "data" / "dataset.csv"))
+        print(f"PASS feature matrix shape: {X.shape}")
+        print(f"PASS target shape: {y.shape}")
+        print(f"PASS classes: {', '.join(encoder.classes_)}")
+        print()
+        return X.shape[1] == 9 and len(encoder.classes_) >= 6
+    except Exception as exc:
+        print(f"FAIL data loading: {exc}")
+        print()
+        return False
+
+
+def test_website_pipeline() -> bool:
+    print_header("TEST 6: URL intelligence pipeline")
+    from src.website_threat_analyzer import analyze_multiple_urls
+
+    try:
+        result = analyze_multiple_urls(["https://example.com", "http://192.168.1.1"])
+        required_keys = {"urls_analyzed", "analysis_results", "summary"}
+        ok = required_keys.issubset(result.keys()) and result["urls_analyzed"] == 2
+        first = result["analysis_results"][0]
+        detail_ok = {"ml_detection", "risk_score", "recommendations", "mitre"}.issubset(first.keys())
+        print(f"PASS analyzed URLs: {result['urls_analyzed']}")
+        print(f"PASS summary: {result['summary']}")
+        print()
+        return ok and detail_ok
+    except Exception as exc:
+        print(f"FAIL website pipeline: {exc}")
+        print()
+        return False
+
+
+def test_end_to_end() -> bool:
+    print_header("TEST 7: Network end-to-end workflow")
+    from src.predict import predict
+    from src.report_generator import generate_report
+    from src.threat_intel import get_threat
+
+    try:
+        sample_data = [300, 15000, 15, 6, 0, 1031, 22, 20, 1000]
+        prediction, confidence = predict(sample_data)
+        threat = get_threat(prediction, confidence)
+        report_path = PROJECT_ROOT / "test_e2e_report.pdf"
+        generated = generate_report(
+            {
+                "Attack Type": threat["type"],
+                "Confidence Score": f"{confidence * 100:.2f}%",
+                "Risk Score": f"{threat['risk_score']}/10",
+                "Risk Level": threat["risk"],
+                "MITRE Technique": f"{threat['mitre']['technique_id']} - {threat['mitre']['technique']}",
+                "CVE References": ", ".join(threat["cves"]),
+                "Description": threat["description"],
+                "Input Features": ", ".join(str(x) for x in sample_data),
+                "Recommendations": threat["recommendations"],
+            },
+            str(report_path),
+        )
+        ok = Path(generated).exists()
+        print(f"PASS predicted {threat['type']} with {confidence * 100:.2f}% confidence")
+        print(f"PASS report path: {generated}")
+        if report_path.exists():
+            report_path.unlink()
+        print()
+        return ok
+    except Exception as exc:
+        print(f"FAIL end-to-end workflow: {exc}")
+        print()
+        return False
+
+
+def main() -> int:
     print()
-    
+    print_header("CyberHawk System Test Suite")
     results = {
         "Module Imports": test_imports(),
         "Model Files": test_model_files(),
         "Threat Predictions": test_predictions(),
         "Report Generation": test_report_generation(),
         "Data Loading": test_data_loading(),
+        "Website Pipeline": test_website_pipeline(),
         "End-to-End": test_end_to_end(),
     }
-    
-    # Print summary
-    print("=" * 60)
-    print("TEST SUMMARY")
-    print("=" * 60)
-    
-    passed = sum(1 for v in results.values() if v)
-    total = len(results)
-    
-    for test_name, result in results.items():
-        status = "✓ PASS" if result else "✗ FAIL"
-        print(f"{status:<8} {test_name}")
-    
-    print("=" * 60)
-    print(f"Total: {passed}/{total} tests passed")
-    
-    if passed == total:
-        print("\n🎉 All tests passed! System is ready to use.")
-        print("\nTo start the dashboard, run:")
+
+    print_header("TEST SUMMARY")
+    passed = sum(1 for result in results.values() if result)
+    for name, result in results.items():
+        print(f"{'PASS' if result else 'FAIL'} {name}")
+    print(f"Total: {passed}/{len(results)} tests passed")
+
+    if passed == len(results):
+        print("System is ready. Start the dashboard with:")
         print("  streamlit run dashboard/app.py")
         return 0
-    else:
-        print(f"\n⚠️  {total - passed} test(s) failed. Please check the errors above.")
-        return 1
+    return 1
 
 
 if __name__ == "__main__":
-    exit_code = main()
-    sys.exit(exit_code)
+    sys.exit(main())
